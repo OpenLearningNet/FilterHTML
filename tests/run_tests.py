@@ -35,7 +35,7 @@ class TestFiltering(unittest.TestCase):
       self.assertEqual(expected_html, result)
 
       input_html = "<a href= checked></a>"
-      expected_html = "<a href=\"#\" checked></a>"
+      expected_html = "<a href=\"\" checked></a>"
 
       result = FilterHTML.filter_html(input_html, spec)
 
@@ -80,7 +80,7 @@ class TestFiltering(unittest.TestCase):
       }
 
       input_html = "<img src=\"\" alt=\"\">"
-      expected_html = "<img src=\"#\" alt=\"\">"
+      expected_html = "<img src=\"\" alt=\"\">"
 
       result = FilterHTML.filter_html(input_html, spec)
 
@@ -93,7 +93,7 @@ class TestFiltering(unittest.TestCase):
          }
       }
       input_html = "<img src=\"\" alt='\"hello!\" <THIS> & is encoded &quot; &;'>"
-      expected_html = "<img src=\"#\" alt='&quot;hello!&quot; &lt;THIS&gt; &amp; is encoded &quot; &amp;&semi;'>"
+      expected_html = "<img src=\"\" alt='&quot;hello!&quot; &lt;THIS&gt; &amp; is encoded &quot; &amp;&semi;'>"
 
       result = FilterHTML.filter_html(input_html, spec)
 
@@ -180,7 +180,7 @@ class TestFiltering(unittest.TestCase):
       </ul>
       <a href="/foo.html" target="_blank">Foo</a><br>
       <a href="http://www.example.com">Example</a><br>
-      <a href="#">Stripped</a><br>
+      <a href="">Stripped</a><br>
       <img src="image.jpg" height="120" width="240">
       """
 
@@ -565,30 +565,30 @@ class TestFiltering(unittest.TestCase):
       """
 
       expected_html = """
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
       <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
-      <a href="#"></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
+      <a href=""></a>
       """
 
       result = FilterHTML.filter_html(input_html, spec)

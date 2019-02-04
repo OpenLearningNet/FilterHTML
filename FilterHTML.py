@@ -31,6 +31,19 @@ CSS_ESCAPE = re.compile(r'^.*\\[0-9A-Fa-f].*$')
 INVALID_ATTRIBUTE_REPLACEMENTS = {
    "url": "#"
 }
+UNSAFE_URL_CHARS = {
+   " ": r"%20",
+   "%": r"%25",
+   ">": r"%3E",
+   "<": r"%3C",
+   "[": r"%5B",
+   "]": r"%5D",
+   "{": r"%7B",
+   "}": r"%7D",
+   "|": r"%7C",
+   "\\": r"%5C",
+   "^": r"%5E"
+}
 
 VOID_ELEMENTS = [
    'area',
@@ -68,6 +81,7 @@ HTML_ESCAPE_QUOTES = {
    '\'': '&apos;',
 }
 
+URL_ENCODING_MATCH = re.compile(r'(\%[0-9a-fA-F]{2})')
 ENTITY_MATCH = re.compile(r'(\&[\#\d\w]+;)')
 
 # predefined HTML colors
@@ -545,12 +559,21 @@ class HTMLFilter(object):
       
       self.__extract_whitespace()
 
-      is_allowed = (attribute_name in allowed_attributes) or (attribute_name in self.global_attrs)
+      is_in_spec = (attribute_name in allowed_attributes)
+      is_in_globals = (attribute_name in self.global_attrs)
+      is_wildcard = ('*' in allowed_attributes)
+      is_regex = any(
+         regex.match(attribute_name)
+         for regex in allowed_attributes
+         if isinstance(regex, re._pattern_type)
+      ) or ('^$' in allowed_attributes)
+      
+      is_allowed = is_in_spec or is_in_globals or is_wildcard or is_regex
 
       value = None
       if self.curr_char == '=':
-         self.__next() # nom the =
-         value = self.__filter_value(tag_name, attribute_name)
+         self.__next() # consume the '='
+         value = self.__filter_value(tag_name, attribute_name, is_regex=is_regex)
          if value is None:
             is_allowed = False
 
@@ -561,6 +584,7 @@ class HTMLFilter(object):
          is_allowed = False
 
       elif tag_spec is not None and tag_spec.get(attribute_name) == "boolean":
+         # No equals sign, so this is a boolean attribute that is present
          value = True
       
       if is_allowed:
@@ -574,7 +598,7 @@ class HTMLFilter(object):
    def __is_valid_unquoted_attribute_character(self, character):
       return character not in UNQUOTED_INVALID_VALUES and not character.isspace()
 
-   def __filter_value(self, tag_name, attribute_name):
+   def __filter_value(self, tag_name, attribute_name, is_regex):
       value_chars = []
 
       num_spaces = len(self.__extract_whitespace())
@@ -589,7 +613,7 @@ class HTMLFilter(object):
 
             value_chars.append(self.curr_char)
 
-         # nom the quote
+         # consume the quote
          self.__next()
       elif num_spaces == 0 and self.__is_valid_unquoted_attribute_character(self.curr_char):
          # parse unquoted attributes
@@ -604,8 +628,24 @@ class HTMLFilter(object):
 
       # retrieve element-specific rules for this attribute
       tag_spec = self.__get_tag_spec(tag_name)
-      if tag_spec is not None and attribute_name in tag_spec:
-         rules = tag_spec[attribute_name]
+      if tag_spec is not None:
+         if attribute_name in tag_spec:
+            rules = tag_spec[attribute_name]
+         elif '*' in tag_spec:
+            rules = tag_spec['*']
+         elif '^$' in tag_spec:
+            for pair in tag_spec['^$']:
+               if isinstance(pair, list):
+                  regex, value = pair
+                  if isinstance(regex, re._pattern_type) and regex.match(attribute_name):
+                     rules = value
+                     break
+         elif is_regex:
+            for regex, regex_rules in tag_spec.items():
+               if isinstance(regex, re._pattern_type) and regex.match(attribute_name):
+                  rules = regex_rules
+                  break
+         
 
       # retrieve rules for this attribute global to all elements
       if attribute_name in self.global_attrs:
@@ -684,6 +724,9 @@ class HTMLFilter(object):
       if UNICODE_ESCAPE in value:
          # disallow &# in values (can be used for encoding disallowed characters)
          value = None
+      elif rules == "*":
+         # leave the value as-is
+         value = value
       elif isinstance(rules, re._pattern_type):
          value = self.purify_regex(value, rules)
       elif rules == "boolean":
@@ -692,7 +735,12 @@ class HTMLFilter(object):
          else:
             value = None
       elif rules == "url":
+         value = value.strip()
          value = self.purify_url(value)
+      elif rules == "url|empty":
+         value = value.strip()
+         if value != '':
+            value = self.purify_url(value)
       elif rules == "color":
          value = self.purify_color(value)
       elif rules == "measurement":
@@ -731,6 +779,16 @@ class HTMLFilter(object):
          value = INVALID_ATTRIBUTE_REPLACEMENTS[rules]
 
       return value, purified
+
+   def __escape_pattern(self, pattern, value, escaper):
+      entities = set(pattern.findall(value))
+      new_text = []
+      for chunk in pattern.split(value):
+         if chunk not in entities:
+            chunk = ''.join([escaper(char) for char in chunk])
+         new_text.append(chunk)
+
+      return ''.join(new_text)
 
    def purify_style(self, style, rules):
       assert isinstance(rules, dict)
@@ -784,9 +842,11 @@ class HTMLFilter(object):
       return None
 
    def purify_url(self, url):
-      # strip out all encoded tag characters
-      for escape_char in ['<', '>']:
-         url = url.replace(escape_char, '')
+      # encode unsafe characters
+      def escaper(char):
+         return UNSAFE_URL_CHARS.get(char, char)
+      
+      url = self.__escape_pattern(URL_ENCODING_MATCH, url, escaper)
       
       if '//' not in self.allowed_schemes and url.startswith('//'):
          return None # disallow protocol-relative URLs (possible XSS vector)
@@ -835,14 +895,10 @@ class HTMLFilter(object):
          return None
 
    def purify_text(self, value, include_quotes=False):
-      entities = set(ENTITY_MATCH.findall(value))
-      new_text = []
-      for chunk in ENTITY_MATCH.split(value):
-         if chunk not in entities:
-            chunk = ''.join([self.__escape_data(char, include_quotes) for char in chunk])
-         new_text.append(chunk)
-
-      return ''.join(new_text)
+      def escaper(char):
+         return self.__escape_data(char, include_quotes)
+      
+      return self.__escape_pattern(ENTITY_MATCH, value, escaper)
 
 def filter_html(html, spec, **kwargs):
    html_filter = HTMLFilter(spec, **kwargs)

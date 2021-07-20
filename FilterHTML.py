@@ -74,7 +74,6 @@ HTML_ESCAPE_CHARS = {
    '>': '&gt;',
    '<': '&lt;',
    '&': '&amp;',
-   ';': '&semi;',
 }
 
 HTML_ESCAPE_QUOTES = {

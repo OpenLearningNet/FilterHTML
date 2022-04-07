@@ -1,5 +1,6 @@
 import re
 import string
+from typing import Pattern
 
 def p2to3isunicode(s, t):
    """ Helper for python 2/3 to detect unicode string """
@@ -566,7 +567,7 @@ class HTMLFilter(object):
       is_regex = any(
          regex.match(attribute_name)
          for regex in allowed_attributes
-         if isinstance(regex, re._pattern_type)
+         if isinstance(regex, Pattern)
       ) or ('^$' in allowed_attributes)
       
       is_allowed = is_in_spec or is_in_globals or is_wildcard or is_regex
@@ -638,12 +639,12 @@ class HTMLFilter(object):
             for pair in tag_spec['^$']:
                if isinstance(pair, list):
                   regex, value = pair
-                  if isinstance(regex, re._pattern_type) and regex.match(attribute_name):
+                  if isinstance(regex, Pattern) and regex.match(attribute_name):
                      rules = value
                      break
          elif is_regex:
             for regex, regex_rules in tag_spec.items():
-               if isinstance(regex, re._pattern_type) and regex.match(attribute_name):
+               if isinstance(regex, Pattern) and regex.match(attribute_name):
                   rules = regex_rules
                   break
          
@@ -686,7 +687,7 @@ class HTMLFilter(object):
             for candidate in candidate_values:
                for rule in rules:
                   new_class_value = None
-                  if isinstance(rule, re._pattern_type):
+                  if isinstance(rule, Pattern):
                      new_class_value = self.purify_regex(candidate, rule)
                   elif callable(rule):
                      new_class_value = rule(value)
@@ -728,7 +729,7 @@ class HTMLFilter(object):
       elif rules == "*":
          # leave the value as-is
          value = value
-      elif isinstance(rules, re._pattern_type):
+      elif isinstance(rules, Pattern):
          value = self.purify_regex(value, rules)
       elif rules == "boolean":
          if value == "" or (attribute_name is not None and value == attribute_name):

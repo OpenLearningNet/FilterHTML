@@ -414,7 +414,7 @@ class HTMLFilter(object):
          tag_output = self.__filter_closing_tag()
       elif self.curr_char == '!' and self.state != 'script-data':
          # <!-- comment tag -->
-         self.__extract_remaining_tag()
+         self.__extract_comment()
       else:
          # <opening tag>, curr_char is first character of tag name
          if self.state == 'script-data':
@@ -463,6 +463,25 @@ class HTMLFilter(object):
          remaining_tag.append(self.curr_char)
          while self.__next() != '>' and self.curr_char != '':
             remaining_tag.append(self.curr_char)
+
+      return ''.join(remaining_tag)
+
+   def __extract_comment(self):
+      remaining_tag = []
+      # first char is !
+      remaining_tag.append(self.curr_char)
+      # Looking for --> or until end of file i.e empty char
+      while True:
+         self.__next()
+         if self.curr_char == '':
+            break
+
+         # to get the last two characters
+         end_string = ''.join(remaining_tag[-2:]) + self.curr_char
+         if end_string != '-->':
+            remaining_tag.append(self.curr_char)
+         else:
+            break
 
       return ''.join(remaining_tag)
 
